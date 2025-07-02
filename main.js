@@ -32,28 +32,88 @@ function main() {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     // Initial camera position is now set relative to the player in the render loop.
 
-    // Ground Plane
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x88cc88 }); // Green
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-    ground.position.y = 0; // Player's base is at y=0
-    ground.receiveShadow = true;
-    scene.add(ground);
+    let islandMesh; // Will be assigned after island creation.
+
+    // Helper function to get height of the island at a given point
+    // Make sure islandMesh is accessible in the scope where this function is used or passed as a parameter.
+    // For now, assume islandMesh will be a global or accessible variable in main() scope.
+    function getHeightAtPoint(x, z, mesh) {
+        if (!mesh) return 0; // Return 0 if mesh is not yet defined
+
+        const raycaster = new THREE.Raycaster();
+        const rayOrigin = new THREE.Vector3(x, 100, z); // Start ray from high above
+        const rayDirection = new THREE.Vector3(0, -1, 0); // Ray points downwards
+        raycaster.set(rayOrigin, rayDirection);
+
+        const intersects = raycaster.intersectObject(mesh);
+
+        if (intersects.length > 0) {
+            return intersects[0].point.y; // Return the y-coordinate of the intersection point
+        }
+        return 0; // Default height if no intersection (e.g., outside island bounds)
+    }
+
+// Add this function somewhere before it's called (e.g., after camera setup or before player setup)
+function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale = 20, elevationScale = 5) {
+    const geometry = new THREE.PlaneGeometry(width, height, segments, segments);
+    const positionAttribute = geometry.attributes.position;
+
+    // Add random offsets for uniqueness
+    const randomOffsetX = Math.random() * 1000;
+    const randomOffsetY = Math.random() * 1000;
+
+    for (let i = 0; i < positionAttribute.count; i++) {
+        const x = positionAttribute.getX(i);
+        const y = positionAttribute.getY(i); // This is the original y of the plane vertex
+
+        // Simple noise: Math.random() creates a somewhat chaotic terrain.
+        // A proper noise function (Simplex/Perlin) would be smoother.
+        // The z-coordinate of the vertex is modified to create height.
+        // After rotation, this z becomes the new y (height).
+        // const zOffset = (Math.random() - 0.5) * 2 * elevationScale; // Random height variation
+
+        // A slightly more structured noise using x and y, with random offsets
+        const zOffset = Math.sin((x + randomOffsetX) / noiseScale) * Math.cos((y + randomOffsetY) / noiseScale) * elevationScale;
+
+        positionAttribute.setZ(i, zOffset);
+    }
+
+    geometry.computeVertexNormals(); // Important for lighting
+
+    // Placeholder material - will be updated in the next step
+    const material = new THREE.MeshStandardMaterial({ color: 0x90EE90, flatShading: false }); // Pastel light green
+    const islandMesh = new THREE.Mesh(geometry, material);
+
+    // Rotate the plane to be horizontal (like the original ground)
+    islandMesh.rotation.x = -Math.PI / 2;
+    islandMesh.receiveShadow = true;
+
+    return islandMesh;
+}
+    // Create and add the island
+    // islandMesh was declared globally or in a wider scope to be accessible by getHeightAtPoint and render loop
+    islandMesh = createIslandMesh(); // Using default parameters for now
+    scene.add(islandMesh);
 
     // Player character
-    const playerCapsuleHeight = 1;
-    const playerCapsuleRadius = 0.5;
+    const playerCapsuleHeight = 1; // Assuming these are defined earlier
+    const playerCapsuleRadius = 0.5; // Assuming these are defined earlier
+    const playerHalfHeight = (playerCapsuleHeight / 2) + playerCapsuleRadius;
+
+    // Player object creation (assuming it happens here or earlier)
     const playerGeometry = new THREE.CapsuleGeometry(playerCapsuleRadius, playerCapsuleHeight, 4, 8);
     const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xffcc99 }); // Pastel orange
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
-    // Set player position so the bottom of the capsule is at y=0
-    // The origin of CapsuleGeometry is its center. Total height = playerCapsuleHeight + 2 * playerCapsuleRadius.
-    // So, center y should be (playerCapsuleHeight / 2) + playerCapsuleRadius for bottom to be at 0.
-    player.position.set(0, (playerCapsuleHeight / 2) + playerCapsuleRadius, 0);
     player.castShadow = true;
-    scene.add(player);
-    const playerHalfHeight = (playerCapsuleHeight / 2) + playerCapsuleRadius; // Distance from center to bottom/top edge
+    scene.add(player); // Player should be added to scene here if not already
+
+    // Set player's initial position on the island
+    const initialPlayerX = 0;
+    const initialPlayerZ = 0;
+    const islandSurfaceY = getHeightAtPoint(initialPlayerX, initialPlayerZ, islandMesh);
+    player.position.set(initialPlayerX, islandSurfaceY + playerHalfHeight, initialPlayerZ);
+    // Ensure player is added to the scene *after* its position is set, if it wasn't added before.
+    // If player is already added, this position update is fine.
 
     // Obstacles
     const obstacles = [];
@@ -198,14 +258,19 @@ function main() {
 
         player.position.y += playerVelocity.y * delta; // Velocity applied over time (delta)
 
+        // Ground collision and response
+        const playerFeetX = player.position.x;
+        const playerFeetZ = player.position.z;
+        const islandSurfaceY = getHeightAtPoint(playerFeetX, playerFeetZ, islandMesh);
+
         const newBottomY = player.position.y - playerHalfHeight;
 
-        if (newBottomY <= 0) { // Ground is at y=0
-            player.position.y = playerHalfHeight; // Place bottom of player capsule exactly on the ground
+        if (newBottomY <= islandSurfaceY) {
+            player.position.y = islandSurfaceY + playerHalfHeight;
             playerVelocity.y = 0;
             onGround = true;
         } else {
-            onGround = false; // Player is in the air
+            onGround = false;
         }
 
 
