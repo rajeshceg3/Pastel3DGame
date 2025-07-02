@@ -167,7 +167,7 @@ function main() {
             new THREE.Vector3(playerCapsuleRadius,  playerHalfHeight,  playerCapsuleRadius)
         );
         // Translate this BB to where the player wants to go
-        playerBB.translate(player.position).translate(intendedDisplacement);
+        playerBB.translate(player.position.clone().add(intendedDisplacement));
 
 
         let canMove = true;
@@ -221,7 +221,7 @@ function main() {
         cameraLookAt.applyAxisAngle(new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion), cameraPitch); // Apply pitch relative to player's orientation
 
         camera.position.copy(desiredCameraPosition);
-        camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1,0).add(cameraLookAt))); // Look at a point slightly above player center, in the direction of pitch
+        camera.lookAt(player.position.clone().add(cameraLookAt)); // Look at a point in the direction of pitch relative to player
 
         renderer.render(scene, camera);
         requestAnimationFrame(render);
