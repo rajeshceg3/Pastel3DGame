@@ -41,7 +41,7 @@ function main() {
         if (!mesh) return 0; // Return 0 if mesh is not yet defined
 
         const raycaster = new THREE.Raycaster();
-        const rayOrigin = new THREE.Vector3(x, 100, z); // Start ray from high above
+        const rayOrigin = new THREE.Vector3(x, 200, z); // Start ray from high above
         const rayDirection = new THREE.Vector3(0, -1, 0); // Ray points downwards
         raycaster.set(rayOrigin, rayDirection);
 
@@ -70,7 +70,6 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
         // A proper noise function (Simplex/Perlin) would be smoother.
         // The z-coordinate of the vertex is modified to create height.
         // After rotation, this z becomes the new y (height).
-        // const zOffset = (Math.random() - 0.5) * 2 * elevationScale; // Random height variation
 
         // A slightly more structured noise using x and y, with random offsets
         const zOffset = Math.sin((x + randomOffsetX) / noiseScale) * Math.cos((y + randomOffsetY) / noiseScale) * elevationScale;
@@ -96,8 +95,6 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
     scene.add(islandMesh);
 
     // Player character
-    const playerCapsuleHeight = 1; // Assuming these are defined earlier
-    const playerCapsuleRadius = 0.5; // Assuming these are defined earlier
     const playerHalfHeight = (playerCapsuleHeight / 2) + playerCapsuleRadius;
 
     // Player object creation (assuming it happens here or earlier)
@@ -105,13 +102,13 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
     const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xffcc99 }); // Pastel orange
     const player = new THREE.Mesh(playerGeometry, playerMaterial);
     player.castShadow = true;
-    scene.add(player); // Player should be added to scene here if not already
 
     // Set player's initial position on the island
     const initialPlayerX = 0;
     const initialPlayerZ = 0;
     const islandSurfaceY = getHeightAtPoint(initialPlayerX, initialPlayerZ, islandMesh);
     player.position.set(initialPlayerX, islandSurfaceY + playerHalfHeight, initialPlayerZ);
+    scene.add(player); // Player added to scene AFTER position is set.
     // Ensure player is added to the scene *after* its position is set, if it wasn't added before.
     // If player is already added, this position update is fine.
 
