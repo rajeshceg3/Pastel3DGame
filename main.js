@@ -69,8 +69,7 @@ function main() {
             recipeItemDiv.appendChild(itemNameH3);
 
             const resourcesUl = document.createElement('ul');
-            for (const resourceId in recipe.requiredResources) {
-                const requiredQuantity = recipe.requiredResources[resourceId];
+for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResources)) {
                 const resourceName = resourceIdToNameMap.get(resourceId) || resourceId; // Fallback to ID
                 const currentAmount = playerInventory[resourceId] || 0;
                 const hasEnough = currentAmount >= requiredQuantity;
