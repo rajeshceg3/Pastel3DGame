@@ -25,10 +25,99 @@ const resourceTypes = [
     }
 ];
 
+// Define Crafting Recipes
+const craftingRecipes = [
+    {
+        itemName: "Pastel Lantern",
+        requiredResources: { "pastelFlower": 3, "softWood": 2 },
+        outputQuantity: 1
+    },
+    {
+        itemName: "Cozy Bench",
+        requiredResources: { "softWood": 5, "glimmeringCrystal": 1 },
+        outputQuantity: 1
+    },
+    {
+        itemName: "Sparkling Path Light",
+        requiredResources: { "glimmeringCrystal": 2, "pastelFlower": 1 },
+        outputQuantity: 2
+    }
+];
+
 function main() {
     const canvas = document.querySelector('#gameCanvas');
     const renderer = new THREE.WebGLRenderer({canvas});
     renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // Crafting Menu DOM Elements
+    const craftingMenuContainer = document.getElementById('craftingMenuContainer');
+    const toggleCraftingMenuButton = document.getElementById('toggleCraftingMenuButton');
+    const closeCraftingMenuButton = document.getElementById('closeCraftingMenuButton');
+    const recipeListDiv = document.getElementById('recipeList');
+
+    const resourceIdToNameMap = new Map(resourceTypes.map(rt => [rt.id, rt.name]));
+
+    function displayRecipes() {
+        recipeListDiv.innerHTML = ''; // Clear existing recipes
+
+        craftingRecipes.forEach(recipe => {
+            const recipeItemDiv = document.createElement('div');
+            recipeItemDiv.className = 'recipe-item';
+
+            const itemNameH3 = document.createElement('h3');
+            itemNameH3.textContent = recipe.itemName;
+            recipeItemDiv.appendChild(itemNameH3);
+
+            const resourcesUl = document.createElement('ul');
+            for (const resourceId in recipe.requiredResources) {
+                const requiredQuantity = recipe.requiredResources[resourceId];
+                const resourceName = resourceIdToNameMap.get(resourceId) || resourceId; // Fallback to ID
+                const currentAmount = playerInventory[resourceId] || 0;
+                const hasEnough = currentAmount >= requiredQuantity;
+
+                const listItem = document.createElement('li');
+                listItem.textContent = `${resourceName}: ${requiredQuantity}`;
+                if (!hasEnough) {
+                    listItem.classList.add('missing-resource');
+                }
+                resourcesUl.appendChild(listItem);
+            }
+            recipeItemDiv.appendChild(resourcesUl);
+
+            // Display output quantity if not 1
+            if (recipe.outputQuantity && recipe.outputQuantity > 1) {
+                const outputP = document.createElement('p');
+                outputP.textContent = `Yields: ${recipe.outputQuantity}`;
+                recipeItemDiv.appendChild(outputP);
+            }
+
+            // TODO: Add a craft button for each recipe in a future step.
+
+            recipeListDiv.appendChild(recipeItemDiv);
+        });
+    }
+
+    function toggleCraftingMenu() {
+        const isMenuOpen = craftingMenuContainer.style.display === 'block';
+        if (isMenuOpen) {
+            craftingMenuContainer.style.display = 'none';
+            // Optional: Re-lock pointer if game requires it, though usually exiting menu implies user wants cursor.
+            // For now, just ensure it's not locked.
+             if (document.pointerLockElement === canvas) {
+                canvas.requestPointerLock(); // Re-lock if it was locked to canvas
+            }
+        } else {
+            craftingMenuContainer.style.display = 'block';
+            displayRecipes();
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        }
+    }
+
+    // Event Listeners for Crafting Menu
+    toggleCraftingMenuButton.addEventListener('click', toggleCraftingMenu);
+    closeCraftingMenuButton.addEventListener('click', toggleCraftingMenu);
     renderer.shadowMap.enabled = true; // Enable shadows in the renderer
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 
