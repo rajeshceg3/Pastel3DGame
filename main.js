@@ -62,6 +62,19 @@ function main() {
 
     let islandMesh; // Will be assigned after island creation.
 
+    // Grid parameters
+    const islandSize = 100; // Assuming island is roughly 100x100
+    const cellSize = 10;
+    const gridWidth = Math.ceil(islandSize / cellSize);
+    const gridHeight = Math.ceil(islandSize / cellSize);
+    const gridOrigin = new THREE.Vector2(-islandSize / 2, -islandSize / 2); // Assuming island center is at (0,0)
+    const spatialGrid = new Map();
+
+    // Player geometry constants - if not defined elsewhere
+    const playerCapsuleRadius = 0.5; // Example value
+    const playerCapsuleHeight = 1.0; // Example value
+
+
     // Helper function to get height of the island at a given point
     // Make sure islandMesh is accessible in the scope where this function is used or passed as a parameter.
     // For now, assume islandMesh will be a global or accessible variable in main() scope.
@@ -79,6 +92,35 @@ function main() {
             return intersects[0].point.y; // Return the y-coordinate of the intersection point
         }
         return 0; // Default height if no intersection (e.g., outside island bounds)
+    }
+
+    // Spatial Grid Functions
+    function getGridCellKey(position) {
+        const gridX = Math.floor((position.x - gridOrigin.x) / cellSize);
+        const gridZ = Math.floor((position.z - gridOrigin.y) / cellSize);
+        return `${gridX}_${gridZ}`;
+    }
+
+    function addToGrid(resource) {
+        const cellKey = getGridCellKey(resource.mesh.position);
+        if (!spatialGrid.has(cellKey)) {
+            spatialGrid.set(cellKey, []);
+        }
+        spatialGrid.get(cellKey).push(resource);
+    }
+
+    function removeFromGrid(resource) {
+        const cellKey = getGridCellKey(resource.mesh.position);
+        if (spatialGrid.has(cellKey)) {
+            const cellResources = spatialGrid.get(cellKey);
+            const index = cellResources.indexOf(resource);
+            if (index > -1) {
+                cellResources.splice(index, 1);
+            }
+            if (cellResources.length === 0) {
+                spatialGrid.delete(cellKey);
+            }
+        }
     }
 
 // Add this function somewhere before it's called (e.g., after camera setup or before player setup)
@@ -141,14 +183,20 @@ function spawnResources(islandMesh, scene, resourceTypes, collectibleResources, 
             // Add to scene
             scene.add(resourceMesh);
 
+            const newlyCreatedResource = { mesh: resourceMesh, id: type.id, name: type.name };
             // Add to collectible array
-            collectibleResources.push({ mesh: resourceMesh, id: type.id, name: type.name });
+            collectibleResources.push(newlyCreatedResource);
+            // Add to spatial grid
+            addToGrid(newlyCreatedResource);
         }
     });
 }
 
 // Updated collectResource function
 function collectResource(resourceToCollect, index, collectiblesArray, scene, playerInventory) {
+    // Remove from spatial grid before removing from scene or array
+    removeFromGrid(resourceToCollect);
+
     // Remove mesh from scene and dispose of its resources
     if (resourceToCollect.mesh) {
         scene.remove(resourceToCollect.mesh);
@@ -373,17 +421,40 @@ function collectResource(resourceToCollect, index, collectiblesArray, scene, pla
 
         // Resource Collection Logic
         if (keys.e) { // Check if 'E' is pressed
-            const collectionDistance = 2.5;
-            for (let i = collectibleResources.length - 1; i >= 0; i--) {
-                const resource = collectibleResources[i];
-                if (!resource.mesh) continue; // Skip if mesh is already removed or undefined
+            const collectionDistance = 2.5; // Make sure this is defined
+            const playerCellKey = getGridCellKey(player.position);
+            const cellsToSearch = [playerCellKey];
 
-                const distanceToPlayer = player.position.distanceTo(resource.mesh.position);
+            const playerGridX = Math.floor((player.position.x - gridOrigin.x) / cellSize);
+            const playerGridZ = Math.floor((player.position.z - gridOrigin.y) / cellSize);
 
-                if (distanceToPlayer < collectionDistance) {
-                    // console.log(`Attempting to collect: ${resource.name}`); // This log is now inside collectResource
-                    collectResource(resource, i, collectibleResources, scene, playerInventory); // Add playerInventory
-                    // Optional: break; // To collect only one item per 'E' press even if multiple are in range
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (dx === 0 && dz === 0) continue;
+                    cellsToSearch.push(`${playerGridX + dx}_${playerGridZ + dz}`);
+                }
+            }
+
+            const processedResources = new Set();
+            for (const cellKey of cellsToSearch) {
+                if (spatialGrid.has(cellKey)) {
+                    const resourcesInCell = spatialGrid.get(cellKey);
+                    // Iterate backwards because collectResource can modify this array by calling removeFromGrid
+                    for (let i = resourcesInCell.length - 1; i >= 0; i--) {
+                        const resource = resourcesInCell[i];
+                        if (!resource.mesh || processedResources.has(resource)) continue;
+
+                        const distanceToPlayer = player.position.distanceTo(resource.mesh.position);
+                        if (distanceToPlayer < collectionDistance) {
+                            // Find the index of this resource in the global collectibleResources array
+                            const globalIndex = collectibleResources.findIndex(r => r === resource);
+                            if (globalIndex !== -1) {
+                                collectResource(resource, globalIndex, collectibleResources, scene, playerInventory);
+                                processedResources.add(resource); // Mark as processed
+                                // Optional: break or continue for single item collection logic
+                            }
+                        }
+                    }
                 }
             }
             keys.e = false; // Consume the key press for this frame
