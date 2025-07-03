@@ -1,5 +1,30 @@
 import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r127/build/three.module.js';
 
+// Define Resource Types
+const resourceTypes = [
+    {
+        id: "pastelFlower",
+        name: "Pastel Flower",
+        modelGeometry: new THREE.SphereGeometry(0.3, 16, 16),
+        modelMaterial: new THREE.MeshStandardMaterial({ color: 0xffb6c1 }),
+        modelHeight: 0.6 // Diameter of the sphere
+    },
+    {
+        id: "glimmeringCrystal",
+        name: "Glimmering Crystal",
+        modelGeometry: new THREE.BoxGeometry(0.25, 0.4, 0.25),
+        modelMaterial: new THREE.MeshStandardMaterial({ color: 0xa0e6ff }),
+        modelHeight: 0.4 // Height of the box
+    },
+    {
+        id: "softWood",
+        name: "Soft Wood",
+        modelGeometry: new THREE.CylinderGeometry(0.2, 0.2, 0.5, 8),
+        modelMaterial: new THREE.MeshStandardMaterial({ color: 0xdeb887 }),
+        modelHeight: 0.5 // Height of the cylinder
+    }
+];
+
 function main() {
     const canvas = document.querySelector('#gameCanvas');
     const renderer = new THREE.WebGLRenderer({canvas});
@@ -31,6 +56,9 @@ function main() {
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     // Initial camera position is now set relative to the player in the render loop.
+
+    const collectibleResources = []; // Initialize collectibleResources array
+    const playerInventory = {}; // Initialize playerInventory object
 
     let islandMesh; // Will be assigned after island creation.
 
@@ -89,6 +117,59 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
 
     return islandMesh;
 }
+
+// Function to spawn resources
+function spawnResources(islandMesh, scene, resourceTypes, collectibleResources, numInstancesPerType = 15) {
+    resourceTypes.forEach(type => {
+        for (let i = 0; i < numInstancesPerType; i++) {
+            // Generate random x and z coordinates within island boundaries (-48 to 48)
+            const x = Math.random() * 96 - 48;
+            const z = Math.random() * 96 - 48;
+
+            const yTerrain = getHeightAtPoint(x, z, islandMesh);
+
+            // Create the mesh
+            const resourceMesh = new THREE.Mesh(type.modelGeometry, type.modelMaterial);
+
+            // Set position
+            resourceMesh.position.set(x, yTerrain + type.modelHeight / 2, z);
+
+            // Enable shadows
+            resourceMesh.castShadow = true;
+            resourceMesh.receiveShadow = true;
+
+            // Add to scene
+            scene.add(resourceMesh);
+
+            // Add to collectible array
+            collectibleResources.push({ mesh: resourceMesh, id: type.id, name: type.name });
+        }
+    });
+}
+
+// Updated collectResource function
+function collectResource(resourceToCollect, index, collectiblesArray, scene, playerInventory) {
+    // Remove mesh from scene and dispose of its resources
+    if (resourceToCollect.mesh) {
+        scene.remove(resourceToCollect.mesh);
+        resourceToCollect.mesh.geometry.dispose(); // Clean up geometry
+        resourceToCollect.mesh.material.dispose(); // Clean up material
+    }
+    // Remove from collectibleResources array
+    collectiblesArray.splice(index, 1);
+
+    // Update player inventory
+    if (playerInventory[resourceToCollect.id]) {
+        playerInventory[resourceToCollect.id]++;
+    } else {
+        playerInventory[resourceToCollect.id] = 1;
+    }
+
+    // Log collection to console
+    console.log(`Collected: ${resourceToCollect.name}! You now have ${playerInventory[resourceToCollect.id]} of ${resourceToCollect.name}(s).`);
+    console.log("Current Inventory:", playerInventory); // Display the whole inventory
+}
+
     // Create and add the island
     // islandMesh was declared globally or in a wider scope to be accessible by getHeightAtPoint and render loop
     islandMesh = createIslandMesh(); // Using default parameters for now
@@ -111,6 +192,9 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
     scene.add(player); // Player added to scene AFTER position is set.
     // Ensure player is added to the scene *after* its position is set, if it wasn't added before.
     // If player is already added, this position update is fine.
+
+    // Spawn resources on the island
+    spawnResources(islandMesh, scene, resourceTypes, collectibleResources);
 
     // Obstacles
     const obstacles = [];
@@ -139,7 +223,7 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
     let onGround = true;
 
     const keys = {
-        w: false, a: false, s: false, d: false, space: false
+        w: false, a: false, s: false, d: false, space: false, e: false
     };
 
     document.addEventListener('keydown', (event) => {
@@ -149,6 +233,7 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
             case 'KeyS': keys.s = true; break;
             case 'KeyD': keys.d = true; break;
             case 'Space': keys.space = true; break;
+            case 'KeyE': keys.e = true; break; // Add this line
         }
     });
 
@@ -159,6 +244,7 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
             case 'KeyS': keys.s = false; break;
             case 'KeyD': keys.d = false; break;
             case 'Space': keys.space = false; break;
+            case 'KeyE': keys.e = false; break; // Add this line
         }
     });
 
@@ -284,6 +370,24 @@ function createIslandMesh(width = 100, height = 100, segments = 50, noiseScale =
 
         camera.position.copy(desiredCameraPosition);
         camera.lookAt(player.position.clone().add(cameraLookAt)); // Look at a point in the direction of pitch relative to player
+
+        // Resource Collection Logic
+        if (keys.e) { // Check if 'E' is pressed
+            const collectionDistance = 2.5;
+            for (let i = collectibleResources.length - 1; i >= 0; i--) {
+                const resource = collectibleResources[i];
+                if (!resource.mesh) continue; // Skip if mesh is already removed or undefined
+
+                const distanceToPlayer = player.position.distanceTo(resource.mesh.position);
+
+                if (distanceToPlayer < collectionDistance) {
+                    // console.log(`Attempting to collect: ${resource.name}`); // This log is now inside collectResource
+                    collectResource(resource, i, collectibleResources, scene, playerInventory); // Add playerInventory
+                    // Optional: break; // To collect only one item per 'E' press even if multiple are in range
+                }
+            }
+            keys.e = false; // Consume the key press for this frame
+        }
 
         renderer.render(scene, camera);
         requestAnimationFrame(render);
