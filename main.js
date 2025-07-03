@@ -228,17 +228,16 @@ function displayInventory() {
         return;
     }
 
-    const itemStrings = [];
+    const resourceMap = new Map(resourceTypes.map(rt => [rt.id, rt]));
     for (const resourceId of inventoryItems) {
-        const resource = resourceTypes.find(rt => rt.id === resourceId);
+        const resource = resourceMap.get(resourceId);
         if (resource) {
-            itemStrings.push(`  ${resource.name}: ${playerInventory[resourceId]}`);
+            console.log(`  ${resource.name}: ${playerInventory[resourceId]}`);
         } else {
             // This case should ideally not happen if inventory is managed correctly
-            itemStrings.push(`  Unknown Resource (${resourceId}): ${playerInventory[resourceId]}`);
+            console.log(`  Unknown Resource (${resourceId}): ${playerInventory[resourceId]}`);
         }
     }
-    itemStrings.forEach(itemString => console.log(itemString));
 }
 
     // Create and add the island
