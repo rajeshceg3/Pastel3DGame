@@ -215,7 +215,29 @@ function collectResource(resourceToCollect, index, collectiblesArray, scene, pla
 
     // Log collection to console
     console.log(`Collected: ${resourceToCollect.name}! You now have ${playerInventory[resourceToCollect.id]} of ${resourceToCollect.name}(s).`);
-    console.log("Current Inventory:", playerInventory); // Display the whole inventory
+    displayInventory(); // Display the formatted inventory
+}
+
+function displayInventory() {
+    console.log("Player Inventory:");
+
+    const inventoryItems = Object.keys(playerInventory);
+
+    if (inventoryItems.length === 0) {
+        console.log("  Empty");
+        return;
+    }
+
+    const resourceMap = new Map(resourceTypes.map(rt => [rt.id, rt]));
+    for (const resourceId of inventoryItems) {
+        const resource = resourceMap.get(resourceId);
+        if (resource) {
+            console.log(`  ${resource.name}: ${playerInventory[resourceId]}`);
+        } else {
+            // This case should ideally not happen if inventory is managed correctly
+            console.log(`  Unknown Resource (${resourceId}): ${playerInventory[resourceId]}`);
+        }
+    }
 }
 
     // Create and add the island
