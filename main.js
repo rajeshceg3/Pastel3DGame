@@ -45,6 +45,34 @@ const craftingRecipes = [
 ];
 
 function main() {
+    function craftItem(recipe, playerInventory) {
+        // Check for sufficient resources again, just in case
+        for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResources)) {
+            if ((playerInventory.resources[resourceId] || 0) < requiredQuantity) {
+                console.log("Attempted to craft without sufficient resources. This should not happen if button is disabled.");
+                return; // Exit if any resource is insufficient
+            }
+        }
+
+        // Deduct resources
+        for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResources)) {
+            playerInventory.resources[resourceId] -= requiredQuantity;
+        }
+
+        // Add crafted item to inventory
+        const itemName = recipe.itemName;
+        if (playerInventory.craftedItems[itemName]) {
+            playerInventory.craftedItems[itemName] += recipe.outputQuantity;
+        } else {
+            playerInventory.craftedItems[itemName] = recipe.outputQuantity;
+        }
+
+        console.log(`Successfully crafted ${recipe.outputQuantity}x ${itemName}!`);
+
+        // After crafting, update both the crafting menu and the inventory display
+        displayRecipes();
+        displayInventory();
+    }
     const canvas = document.querySelector('#gameCanvas');
     const renderer = new THREE.WebGLRenderer({canvas});
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -69,13 +97,18 @@ function main() {
             recipeItemDiv.appendChild(itemNameH3);
 
             const resourcesUl = document.createElement('ul');
-for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResources)) {
+            let canCraft = true;
+            for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResources)) {
                 const resourceName = resourceIdToNameMap.get(resourceId) || resourceId; // Fallback to ID
-                const currentAmount = playerInventory[resourceId] || 0;
+                const currentAmount = playerInventory.resources[resourceId] || 0;
                 const hasEnough = currentAmount >= requiredQuantity;
 
+                if (!hasEnough) {
+                    canCraft = false;
+                }
+
                 const listItem = document.createElement('li');
-                listItem.textContent = `${resourceName}: ${requiredQuantity}`;
+                listItem.textContent = `${resourceName}: ${currentAmount} / ${requiredQuantity}`;
                 if (!hasEnough) {
                     listItem.classList.add('missing-resource');
                 }
@@ -90,7 +123,12 @@ for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResou
                 recipeItemDiv.appendChild(outputP);
             }
 
-            // TODO: Add a craft button for each recipe in a future step.
+            const craftButton = document.createElement('button');
+            craftButton.textContent = 'Craft';
+            craftButton.className = 'craft-button';
+            craftButton.disabled = !canCraft;
+            craftButton.addEventListener('click', () => craftItem(recipe, playerInventory));
+            recipeItemDiv.appendChild(craftButton);
 
             recipeListDiv.appendChild(recipeItemDiv);
         });
@@ -146,7 +184,10 @@ for (const [resourceId, requiredQuantity] of Object.entries(recipe.requiredResou
     // Initial camera position is now set relative to the player in the render loop.
 
     const collectibleResources = []; // Initialize collectibleResources array
-    const playerInventory = {}; // Initialize playerInventory object
+    const playerInventory = {
+        resources: {},
+        craftedItems: {}
+    }; // Initialize playerInventory object
 
     let islandMesh; // Will be assigned after island creation.
 
@@ -295,35 +336,41 @@ function collectResource(resourceToCollect, index, collectiblesArray, scene, pla
     collectiblesArray.splice(index, 1);
 
     // Update player inventory
-    if (playerInventory[resourceToCollect.id]) {
-        playerInventory[resourceToCollect.id]++;
+    if (playerInventory.resources[resourceToCollect.id]) {
+        playerInventory.resources[resourceToCollect.id]++;
     } else {
-        playerInventory[resourceToCollect.id] = 1;
+        playerInventory.resources[resourceToCollect.id] = 1;
     }
 
     // Log collection to console
-    console.log(`Collected: ${resourceToCollect.name}! You now have ${playerInventory[resourceToCollect.id]} of ${resourceToCollect.name}(s).`);
+    console.log(`Collected: ${resourceToCollect.name}! You now have ${playerInventory.resources[resourceToCollect.id]} of ${resourceToCollect.name}(s).`);
     displayInventory(); // Display the formatted inventory
 }
 
 function displayInventory() {
     console.log("Player Inventory:");
 
-    const inventoryItems = Object.keys(playerInventory);
-
-    if (inventoryItems.length === 0) {
-        console.log("  Empty");
-        return;
+    // Display Resources
+    console.log("  Resources:");
+    const resourceMap = new Map(resourceTypes.map(rt => [rt.id, rt.name]));
+    const resourceIds = Object.keys(playerInventory.resources);
+    if (resourceIds.length === 0) {
+        console.log("    Empty");
+    } else {
+        for (const resourceId of resourceIds) {
+            const resourceName = resourceMap.get(resourceId) || resourceId;
+            console.log(`    ${resourceName}: ${playerInventory.resources[resourceId]}`);
+        }
     }
 
-    const resourceMap = new Map(resourceTypes.map(rt => [rt.id, rt]));
-    for (const resourceId of inventoryItems) {
-        const resource = resourceMap.get(resourceId);
-        if (resource) {
-            console.log(`  ${resource.name}: ${playerInventory[resourceId]}`);
-        } else {
-            // This case should ideally not happen if inventory is managed correctly
-            console.log(`  Unknown Resource (${resourceId}): ${playerInventory[resourceId]}`);
+    // Display Crafted Items
+    console.log("  Crafted Items:");
+    const craftedItemNames = Object.keys(playerInventory.craftedItems);
+    if (craftedItemNames.length === 0) {
+        console.log("    Empty");
+    } else {
+        for (const itemName of craftedItemNames) {
+            console.log(`    ${itemName}: ${playerInventory.craftedItems[itemName]}`);
         }
     }
 }
