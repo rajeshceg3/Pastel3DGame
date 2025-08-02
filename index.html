@@ -59,6 +59,32 @@
             margin-bottom: 3px;
         }
 
+        .missing-resource {
+            color: #ff6b6b; /* A light red to indicate missing resources */
+        }
+
+        .craft-button {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .craft-button:hover:not(:disabled) {
+            background-color: #4cae4c;
+        }
+
+        .craft-button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
         #closeCraftingMenuButton {
             display: block;
             width: 100px;
